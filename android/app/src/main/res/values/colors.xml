@@ -1,0 +1,12 @@
+<resources>
+    <color name="green_700">#2E7D32</color>
+    <color name="green_900">#0B3D0F</color>
+    <color name="green_100">#C8E6C9</color>
+    <color name="teal_700">#00796B</color>
+    <color name="white">#FFFFFF</color>
+    <color name="ink">#1B1B1B</color>
+    <color name="ink_muted">#5F6368</color>
+    <color name="surface_variant">#EEF2EE</color>
+    <color name="outline">#9AA09A</color>
+    <color name="launcher_background">#2E7D32</color>
+</resources>

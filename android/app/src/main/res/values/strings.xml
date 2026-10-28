@@ -1,0 +1,34 @@
+<resources>
+    <string name="app_name">Shopping List</string>
+
+    <string name="add_item">Add item</string>
+    <string name="edit_item">Edit item</string>
+    <string name="item_name">Item name</string>
+    <string name="quantity">Quantity</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+
+    <string name="delete_item">Delete item?</string>
+    <string name="delete_item_message">Remove \"%1$s\" from your shopping list?</string>
+
+    <string name="empty_title">Your list is empty</string>
+    <string name="empty_subtitle">Tap the + button to add your first item.</string>
+
+    <string name="error_title">Could not reach the server</string>
+    <string name="error_subtitle">Make sure the backend is running, then try again.</string>
+    <string name="retry">Retry</string>
+    <string name="error_refresh">Could not refresh your list. Check the server connection.</string>
+    <string name="error_save">Could not save your change. Check the server connection.</string>
+
+    <string name="error_name_required">Enter an item name</string>
+    <string name="error_name_too_long">Name must be 80 characters or fewer</string>
+    <string name="error_quantity_invalid">Enter a quantity from 1 to 9999</string>
+
+    <string name="quantity_format">Qty: %1$d</string>
+    <string name="mark_as_purchased">Mark as purchased</string>
+    <string name="mark_as_unpurchased">Mark as not purchased</string>
+    <string name="edit_item_description">Edit %1$s</string>
+    <string name="delete_item_description">Delete %1$s</string>
+    <string name="add_item_description">Add shopping item</string>
+</resources>
