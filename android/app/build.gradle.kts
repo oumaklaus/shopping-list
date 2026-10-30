@@ -3,6 +3,10 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val apiBaseUrl = providers.gradleProperty("apiBaseUrl")
+    .getOrElse("http://10.0.2.2:8080/")
+    .let { if (it.endsWith("/")) it else "$it/" }
+
 android {
     namespace = "com.example.shoppinglist"
     compileSdk = 35
@@ -14,7 +18,7 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080/\"")
+        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
     }
 
     buildTypes {

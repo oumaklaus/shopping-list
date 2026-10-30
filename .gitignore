@@ -17,3 +17,4 @@ android/captures/
 
 # Local configuration
 .env
+.run/

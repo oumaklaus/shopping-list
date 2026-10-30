@@ -3,7 +3,6 @@ package com.example.shoppinglist.repository
 import com.example.shoppinglist.model.Item
 import com.mongodb.client.MongoCollection
 import com.mongodb.client.model.Filters
-import com.mongodb.client.model.Sorts
 import com.mongodb.client.model.Updates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -16,9 +15,9 @@ class MongoItemRepository(
 
     override suspend fun findAll(): List<Item> = withContext(Dispatchers.IO) {
         collection.find()
-            .sort(Sorts.ascending("createdAt"))
             .map { it.toItem() }
             .toList()
+            .sortedBy { it.createdAt }
     }
 
     override suspend fun create(name: String, quantity: Int): Item = withContext(Dispatchers.IO) {

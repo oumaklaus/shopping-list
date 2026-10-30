@@ -24,7 +24,9 @@ import kotlinx.serialization.json.Json
 import org.slf4j.event.Level
 
 fun main() {
-    val port = System.getenv("PORT")?.toIntOrNull() ?: 8080
+    val port = System.getenv("PORT")?.toIntOrNull()
+        ?: System.getenv("SERVER_PORT")?.toIntOrNull()
+        ?: 8080
     val mongoUri = System.getenv("MONGODB_URI") ?: "mongodb://localhost:27017"
     val databaseName = System.getenv("MONGODB_DB") ?: "shopping_list"
 

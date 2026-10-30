@@ -2,6 +2,7 @@ plugins {
     kotlin("jvm") version "2.0.21"
     kotlin("plugin.serialization") version "2.0.21"
     application
+    id("com.gradleup.shadow") version "8.3.6"
 }
 
 group = "com.example"
@@ -21,7 +22,7 @@ dependencies {
     implementation("io.ktor:ktor-server-status-pages:$ktorVersion")
     implementation("io.ktor:ktor-server-call-logging:$ktorVersion")
     implementation("ch.qos.logback:logback-classic:1.5.12")
-    implementation("org.mongodb:mongodb-driver-sync:5.2.1")
+    implementation("org.mongodb:mongodb-driver-sync:4.11.5")
 
     testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:2.0.21")
@@ -39,9 +40,18 @@ kotlin {
 }
 
 application {
+    applicationName = "shopping-list-backend"
     mainClass.set("com.example.shoppinglist.ApplicationKt")
 }
 
 tasks.test {
     useJUnit()
+}
+
+tasks.shadowJar {
+    archiveFileName.set("shopping-list-backend-all.jar")
+    mergeServiceFiles()
+    manifest {
+        attributes["Main-Class"] = "com.example.shoppinglist.ApplicationKt"
+    }
 }
