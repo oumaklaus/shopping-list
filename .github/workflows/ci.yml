@@ -22,7 +22,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Test and package backend
         run: ./backend/gradlew -p backend test shadowJar --no-daemon --console=plain
 
@@ -36,7 +36,7 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v3
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Test, lint, and assemble
         run: ./android/gradlew -p android testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain
       - name: Verify launcher and backup policy
