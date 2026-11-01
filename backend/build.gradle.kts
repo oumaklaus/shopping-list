@@ -28,7 +28,7 @@ dependencies {
     implementation("at.favre.lib:bcrypt:0.10.2")
 
     testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:2.0.21")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:2.4.21")
 }
 
 java {
