@@ -3,6 +3,8 @@ package com.example.shoppinglist.routes
 import com.example.shoppinglist.model.ErrorResponse
 import com.example.shoppinglist.model.ItemRequest
 import com.example.shoppinglist.repository.ItemRepository
+import io.ktor.server.auth.jwt.JWTPrincipal
+import io.ktor.server.auth.principal
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
@@ -16,7 +18,7 @@ import io.ktor.server.routing.route
 fun Route.itemRoutes(repository: ItemRepository) {
     route("/items") {
         get {
-            call.respond(repository.findAll())
+            call.respond(repository.findAll(call.userId()))
         }
 
         post {
@@ -27,7 +29,11 @@ fun Route.itemRoutes(repository: ItemRepository) {
                 return@post
             }
 
-            val created = repository.create(request.name.trim(), request.quantity)
+            val created = repository.create(
+                call.userId(),
+                request.name.trim(),
+                request.quantity
+            )
             call.respond(HttpStatusCode.Created, created)
         }
 
@@ -46,6 +52,7 @@ fun Route.itemRoutes(repository: ItemRepository) {
             }
 
             val updated = repository.update(
+                userId = call.userId(),
                 id = id,
                 name = request.name.trim(),
                 quantity = request.quantity,
@@ -66,7 +73,7 @@ fun Route.itemRoutes(repository: ItemRepository) {
                 return@delete
             }
 
-            if (repository.delete(id)) {
+            if (repository.delete(call.userId(), id)) {
                 call.respond(HttpStatusCode.NoContent)
             } else {
                 call.respond(HttpStatusCode.NotFound, ErrorResponse("Item not found"))
@@ -74,6 +81,9 @@ fun Route.itemRoutes(repository: ItemRepository) {
         }
     }
 }
+
+private fun io.ktor.server.application.ApplicationCall.userId(): String =
+    requireNotNull(principal<JWTPrincipal>()?.payload?.subject)
 
 private fun ItemRequest.validationError(): String? {
     val trimmedName = name.trim()

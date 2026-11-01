@@ -13,15 +13,20 @@ class MongoItemRepository(
     private val collection: MongoCollection<Document>
 ) : ItemRepository {
 
-    override suspend fun findAll(): List<Item> = withContext(Dispatchers.IO) {
-        collection.find()
+    override suspend fun findAll(userId: String): List<Item> = withContext(Dispatchers.IO) {
+        collection.find(Filters.eq("userId", userId))
             .map { it.toItem() }
             .toList()
             .sortedBy { it.createdAt }
     }
 
-    override suspend fun create(name: String, quantity: Int): Item = withContext(Dispatchers.IO) {
+    override suspend fun create(
+        userId: String,
+        name: String,
+        quantity: Int
+    ): Item = withContext(Dispatchers.IO) {
         val document = Document("_id", ObjectId())
+            .append("userId", userId)
             .append("name", name)
             .append("quantity", quantity)
             .append("purchased", false)
@@ -32,6 +37,7 @@ class MongoItemRepository(
     }
 
     override suspend fun update(
+        userId: String,
         id: String,
         name: String,
         quantity: Int,
@@ -40,7 +46,7 @@ class MongoItemRepository(
         val objectId = id.toObjectId() ?: return@withContext null
 
         val result = collection.updateOne(
-            Filters.eq("_id", objectId),
+            Filters.and(Filters.eq("_id", objectId), Filters.eq("userId", userId)),
             Updates.combine(
                 Updates.set("name", name),
                 Updates.set("quantity", quantity),
@@ -50,12 +56,16 @@ class MongoItemRepository(
 
         if (result.matchedCount == 0L) return@withContext null
 
-        collection.find(Filters.eq("_id", objectId)).first()?.toItem()
+        collection.find(
+            Filters.and(Filters.eq("_id", objectId), Filters.eq("userId", userId))
+        ).first()?.toItem()
     }
 
-    override suspend fun delete(id: String): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun delete(userId: String, id: String): Boolean = withContext(Dispatchers.IO) {
         val objectId = id.toObjectId() ?: return@withContext false
-        collection.deleteOne(Filters.eq("_id", objectId)).deletedCount > 0
+        collection.deleteOne(
+            Filters.and(Filters.eq("_id", objectId), Filters.eq("userId", userId))
+        ).deletedCount > 0
     }
 }
 

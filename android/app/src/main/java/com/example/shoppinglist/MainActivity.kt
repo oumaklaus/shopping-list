@@ -1,12 +1,16 @@
 package com.example.shoppinglist
 
 import android.content.DialogInterface
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.shoppinglist.data.Item
+import com.example.shoppinglist.data.AuthSession
+import com.example.shoppinglist.data.SharedPreferencesSessionStorage
+import com.example.shoppinglist.data.SessionStorage
 import com.example.shoppinglist.databinding.ActivityMainBinding
 import com.example.shoppinglist.databinding.DialogItemBinding
 import com.example.shoppinglist.ui.InputError
@@ -22,6 +26,7 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private lateinit var session: SessionStorage
     private val viewModel: ShoppingListViewModel by viewModels()
 
     private val adapter = ItemAdapter(
@@ -32,16 +37,49 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        session = SharedPreferencesSessionStorage(this)
+        if (session.token.isNullOrBlank()) {
+            openLogin(false)
+            return
+        }
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         binding.recyclerItems.layoutManager = LinearLayoutManager(this)
         binding.recyclerItems.adapter = adapter
 
+        binding.toolbar.subtitle = session.email
+        binding.toolbar.inflateMenu(R.menu.main_menu)
+        binding.toolbar.setOnMenuItemClickListener { item ->
+            if (item.itemId == R.id.action_logout) {
+                session.clear()
+                openLogin(false)
+                true
+            } else {
+                false
+            }
+        }
+
+        AuthSession.expired.observe(this) { expired ->
+            if (expired == true && !isFinishing) {
+                AuthSession.expirationHandled()
+                openLogin(true)
+            }
+        }
+
         binding.fabAdd.setOnClickListener { showItemDialog(null) }
         binding.buttonRetry.setOnClickListener { viewModel.loadItems() }
 
         observeViewModel()
+    }
+
+    private fun openLogin(sessionExpired: Boolean) {
+        startActivity(
+            Intent(this, LoginActivity::class.java)
+                .putExtra(LoginActivity.EXTRA_SESSION_EXPIRED, sessionExpired)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        )
+        finish()
     }
 
     private fun observeViewModel() {

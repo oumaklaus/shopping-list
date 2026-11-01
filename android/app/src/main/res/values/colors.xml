@@ -9,4 +9,5 @@
     <color name="surface_variant">#EEF2EE</color>
     <color name="outline">#9AA09A</color>
     <color name="launcher_background">#2E7D32</color>
+    <color name="login_background">#F3F7F3</color>
 </resources>

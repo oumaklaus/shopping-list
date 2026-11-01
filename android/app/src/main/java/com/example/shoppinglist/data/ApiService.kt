@@ -9,6 +9,12 @@ import retrofit2.http.PUT
 import retrofit2.http.Path
 
 interface ApiService {
+    @POST("auth/register")
+    suspend fun register(@Body request: AuthRequest): AuthResponse
+
+    @POST("auth/login")
+    suspend fun login(@Body request: AuthRequest): AuthResponse
+
     @GET("items")
     suspend fun getItems(): List<Item>
 

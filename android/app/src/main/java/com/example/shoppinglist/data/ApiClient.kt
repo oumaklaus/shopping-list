@@ -17,6 +17,19 @@ object ApiClient {
     }
 
     private val httpClient = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            val token = AuthSession.token
+            val request = chain.request().newBuilder().apply {
+                if (!token.isNullOrBlank()) {
+                    header("Authorization", "Bearer $token")
+                }
+            }.build()
+            val response = chain.proceed(request)
+            if (response.code == 401 && token != null) {
+                AuthSession.expire(token)
+            }
+            response
+        }
         .addInterceptor(loggingInterceptor)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)

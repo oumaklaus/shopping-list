@@ -11,8 +11,18 @@ APK="$ANDROID_DIR/app/build/outputs/apk/debug/app-debug.apk"
 MONGO_CONTAINER="shopping-list-mongo"
 PORT="${PORT:-8080}"
 MONGODB_DB="${MONGODB_DB:-shopping_list}"
+JWT_SECRET_FILE="$RUN_DIR/jwt-secret"
 
 mkdir -p "$RUN_DIR"
+
+if [ -z "${JWT_SECRET:-}" ]; then
+    if [ ! -s "$JWT_SECRET_FILE" ]; then
+        umask 077
+        od -An -N32 -tx1 /dev/urandom | tr -d ' \n' > "$JWT_SECRET_FILE"
+    fi
+    JWT_SECRET="$(cat "$JWT_SECRET_FILE")"
+fi
+export JWT_SECRET
 
 log() {
     printf '%s\n' "$*"
@@ -144,11 +154,13 @@ start_backend() {
                 PORT="$PORT" \
                 MONGODB_URI="$MONGODB_URI" \
                 MONGODB_DB="$MONGODB_DB" \
+                JWT_SECRET="$JWT_SECRET" \
                 "$bin" >>"$LOG_FILE" 2>&1 < /dev/null &
         else
             PORT="$PORT" \
             MONGODB_URI="$MONGODB_URI" \
             MONGODB_DB="$MONGODB_DB" \
+            JWT_SECRET="$JWT_SECRET" \
             nohup "$bin" >>"$LOG_FILE" 2>&1 &
         fi
         echo $! > "$PID_FILE"
@@ -158,7 +170,7 @@ start_backend() {
     backend_pid="$(cat "$PID_FILE")"
     local _
     for _ in $(seq 1 60); do
-        if curl -sf -m 3 "http://localhost:$PORT/items" >/dev/null 2>&1; then
+        if curl -sf -m 3 "http://localhost:$PORT/health" >/dev/null 2>&1; then
             log "Backend is ready."
             return 0
         fi
@@ -256,7 +268,7 @@ start_app() {
     "$adb" -s "$device" install -r "$APK"
 
     log "Launching the app..."
-    "$adb" -s "$device" shell am start -n com.example.shoppinglist/.MainActivity >/dev/null
+    "$adb" -s "$device" shell am start -n com.example.shoppinglist/.LoginActivity >/dev/null
 
     log ""
     log "Done. The app is open on your phone."

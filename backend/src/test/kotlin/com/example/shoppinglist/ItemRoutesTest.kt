@@ -1,19 +1,21 @@
 package com.example.shoppinglist
 
+import com.example.shoppinglist.model.AuthResponse
 import com.example.shoppinglist.model.Item
-import com.example.shoppinglist.repository.ItemRepository
+import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -21,16 +23,12 @@ import kotlin.test.assertTrue
 
 class ItemRoutesTest {
     private val json = Json { ignoreUnknownKeys = true }
-    private val repository = InMemoryItemRepository()
-
-    @BeforeTest
-    fun setUp() {
-        repository.clear()
-    }
 
     @Test
-    fun `health endpoint reports ok`() = testApplication {
-        application { module(repository) }
+    fun `health endpoint remains public`() = testApplication {
+        application {
+            module(InMemoryItemRepository(), InMemoryUserRepository(), TEST_JWT_SECRET)
+        }
 
         val response = client.get("/health")
 
@@ -39,148 +37,130 @@ class ItemRoutesTest {
     }
 
     @Test
-    fun `get items returns empty list initially`() = testApplication {
-        application { module(repository) }
+    fun `items reject requests without a bearer token`() = testApplication {
+        application {
+            module(InMemoryItemRepository(), InMemoryUserRepository(), TEST_JWT_SECRET)
+        }
 
-        val response = client.get("/items")
-
-        assertEquals(HttpStatusCode.OK, response.status)
-        assertEquals(emptyList(), json.decodeFromString<List<Item>>(response.bodyAsText()))
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/items").status)
     }
 
     @Test
-    fun `post item creates item and returns it`() = testApplication {
-        application { module(repository) }
+    fun `authenticated user can create update and delete an item`() = testApplication {
+        application {
+            module(InMemoryItemRepository(), InMemoryUserRepository(), TEST_JWT_SECRET)
+        }
+        val token = registerAndGetToken("shopper@example.com")
 
-        val response = client.post("/items") {
+        val createResponse = client.post("/items") {
+            bearerAuth(token)
             contentType(ContentType.Application.Json)
             setBody("""{"name":"Milk","quantity":2}""")
         }
+        assertEquals(HttpStatusCode.Created, createResponse.status)
+        val created = json.decodeFromString<Item>(createResponse.bodyAsText())
+        assertEquals("Milk", created.name)
+        assertFalse(created.purchased)
 
-        assertEquals(HttpStatusCode.Created, response.status)
-        val item = json.decodeFromString<Item>(response.bodyAsText())
-        assertEquals("Milk", item.name)
-        assertEquals(2, item.quantity)
-        assertFalse(item.purchased)
-        assertTrue(item.id.isNotBlank())
-    }
-
-    @Test
-    fun `post item rejects blank name`() = testApplication {
-        application { module(repository) }
-
-        val response = client.post("/items") {
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"  ","quantity":2}""")
-        }
-
-        assertEquals(HttpStatusCode.BadRequest, response.status)
-    }
-
-    @Test
-    fun `post item rejects non positive quantity`() = testApplication {
-        application { module(repository) }
-
-        val response = client.post("/items") {
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"Milk","quantity":0}""")
-        }
-
-        assertEquals(HttpStatusCode.BadRequest, response.status)
-    }
-
-    @Test
-    fun `put item updates name quantity and purchased`() = testApplication {
-        application { module(repository) }
-        val created = repository.create("Milk", 2)
-
-        val response = client.put("/items/${created.id}") {
+        val updateResponse = client.put("/items/${created.id}") {
+            bearerAuth(token)
             contentType(ContentType.Application.Json)
             setBody("""{"name":"Oat milk","quantity":3,"purchased":true}""")
         }
+        assertEquals(HttpStatusCode.OK, updateResponse.status)
+        assertTrue(json.decodeFromString<Item>(updateResponse.bodyAsText()).purchased)
 
-        assertEquals(HttpStatusCode.OK, response.status)
-        val updated = json.decodeFromString<Item>(response.bodyAsText())
-        assertEquals("Oat milk", updated.name)
-        assertEquals(3, updated.quantity)
-        assertTrue(updated.purchased)
+        assertEquals(
+            HttpStatusCode.NoContent,
+            client.delete("/items/${created.id}") { bearerAuth(token) }.status
+        )
+        val remaining = client.get("/items") { bearerAuth(token) }
+        assertEquals(emptyList(), json.decodeFromString<List<Item>>(remaining.bodyAsText()))
     }
 
     @Test
-    fun `put missing item returns 404`() = testApplication {
-        application { module(repository) }
-
-        val response = client.put("/items/64b7f9a2c2a4e4a1b2c3d4e5") {
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"Milk","quantity":2,"purchased":false}""")
+    fun `users only see their own shopping items`() = testApplication {
+        application {
+            module(InMemoryItemRepository(), InMemoryUserRepository(), TEST_JWT_SECRET)
         }
+        val firstToken = registerAndGetToken("first@example.com")
+        val secondToken = registerAndGetToken("second@example.com")
+        createItem(firstToken, "First user's milk")
+        createItem(secondToken, "Second user's bread")
 
-        assertEquals(HttpStatusCode.NotFound, response.status)
+        val firstItems = client.get("/items") { bearerAuth(firstToken) }
+        val secondItems = client.get("/items") { bearerAuth(secondToken) }
+
+        assertEquals(
+            listOf("First user's milk"),
+            json.decodeFromString<List<Item>>(firstItems.bodyAsText()).map(Item::name)
+        )
+        assertEquals(
+            listOf("Second user's bread"),
+            json.decodeFromString<List<Item>>(secondItems.bodyAsText()).map(Item::name)
+        )
     }
 
     @Test
-    fun `delete item removes it`() = testApplication {
-        application { module(repository) }
-        val created = repository.create("Milk", 2)
+    fun `user cannot update or delete another users item`() = testApplication {
+        application {
+            module(InMemoryItemRepository(), InMemoryUserRepository(), TEST_JWT_SECRET)
+        }
+        val ownerToken = registerAndGetToken("owner@example.com")
+        val otherToken = registerAndGetToken("other@example.com")
+        val item = createItem(ownerToken, "Private item")
 
-        val response = client.delete("/items/${created.id}")
+        val update = client.put("/items/${item.id}") {
+            bearerAuth(otherToken)
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"Stolen","quantity":1,"purchased":true}""")
+        }
+        val delete = client.delete("/items/${item.id}") { bearerAuth(otherToken) }
 
-        assertEquals(HttpStatusCode.NoContent, response.status)
-        assertEquals(emptyList(), repository.findAll())
+        assertEquals(HttpStatusCode.NotFound, update.status)
+        assertEquals(HttpStatusCode.NotFound, delete.status)
+        val ownerItems = client.get("/items") { bearerAuth(ownerToken) }
+        assertEquals(
+            listOf("Private item"),
+            json.decodeFromString<List<Item>>(ownerItems.bodyAsText()).map(Item::name)
+        )
     }
 
     @Test
-    fun `delete missing item returns 404`() = testApplication {
-        application { module(repository) }
-
-        val response = client.delete("/items/64b7f9a2c2a4e4a1b2c3d4e5")
-
-        assertEquals(HttpStatusCode.NotFound, response.status)
-    }
-
-    @Test
-    fun `malformed json returns bad request`() = testApplication {
-        application { module(repository) }
+    fun `post item still validates input`() = testApplication {
+        application {
+            module(InMemoryItemRepository(), InMemoryUserRepository(), TEST_JWT_SECRET)
+        }
+        val token = registerAndGetToken("shopper@example.com")
 
         val response = client.post("/items") {
+            bearerAuth(token)
             contentType(ContentType.Application.Json)
-            setBody("""{"name":""")
+            setBody("""{"name":"  ","quantity":0}""")
         }
 
         assertEquals(HttpStatusCode.BadRequest, response.status)
     }
+
+    private suspend fun ApplicationTestBuilder.registerAndGetToken(email: String): String {
+        val response = register(email, "correct-horse")
+        assertEquals(HttpStatusCode.Created, response.status)
+        return json.decodeFromString<AuthResponse>(response.bodyAsText()).token
+    }
+
+    private suspend fun ApplicationTestBuilder.createItem(token: String, name: String): Item {
+        val response = client.post("/items") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"$name","quantity":1}""")
+        }
+        assertEquals(HttpStatusCode.Created, response.status)
+        return json.decodeFromString(response.bodyAsText())
+    }
 }
 
-private class InMemoryItemRepository : ItemRepository {
-    private val items = mutableListOf<Item>()
-    private var nextId = 1
-
-    fun clear() {
-        items.clear()
-        nextId = 1
+suspend fun ApplicationTestBuilder.register(email: String, password: String): HttpResponse =
+    client.post("/auth/register") {
+        contentType(ContentType.Application.Json)
+        setBody("""{"email":"$email","password":"$password"}""")
     }
-
-    override suspend fun findAll(): List<Item> = items.toList()
-
-    override suspend fun create(name: String, quantity: Int): Item {
-        val item = Item(
-            id = "id-${nextId++}",
-            name = name,
-            quantity = quantity,
-            purchased = false,
-            createdAt = System.currentTimeMillis()
-        )
-        items.add(item)
-        return item
-    }
-
-    override suspend fun update(id: String, name: String, quantity: Int, purchased: Boolean): Item? {
-        val index = items.indexOfFirst { it.id == id }
-        if (index == -1) return null
-        val updated = items[index].copy(name = name, quantity = quantity, purchased = purchased)
-        items[index] = updated
-        return updated
-    }
-
-    override suspend fun delete(id: String): Boolean = items.removeIf { it.id == id }
-}

@@ -17,4 +17,18 @@ android/captures/
 
 # Local configuration
 .env
+.env.*
+!.env.example
 .run/
+
+# Local agent and verification artifacts
+.codex-artifacts/
+.superpowers/
+docs/superpowers/
+
+# Signing and service credentials
+*.jks
+*.keystore
+keystore.properties
+secrets.properties
+google-services.json

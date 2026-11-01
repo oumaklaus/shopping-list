@@ -1,15 +1,25 @@
 package com.example.shoppinglist
 
+import com.example.shoppinglist.auth.AuthService
+import com.example.shoppinglist.auth.BCryptPasswordHasher
+import com.example.shoppinglist.auth.JwtService
 import com.example.shoppinglist.model.ErrorResponse
 import com.example.shoppinglist.model.HealthResponse
 import com.example.shoppinglist.repository.ItemRepository
 import com.example.shoppinglist.repository.MongoItemRepository
+import com.example.shoppinglist.repository.MongoUserRepository
+import com.example.shoppinglist.repository.UserRepository
+import com.example.shoppinglist.routes.authRoutes
 import com.example.shoppinglist.routes.itemRoutes
 import com.mongodb.client.MongoClients
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
+import io.ktor.server.auth.Authentication
+import io.ktor.server.auth.authenticate
+import io.ktor.server.auth.jwt.JWTPrincipal
+import io.ktor.server.auth.jwt.jwt
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.BadRequestException
@@ -29,20 +39,30 @@ fun main() {
         ?: 8080
     val mongoUri = System.getenv("MONGODB_URI") ?: "mongodb://localhost:27017"
     val databaseName = System.getenv("MONGODB_DB") ?: "shopping_list"
+    val jwtSecret = requireNotNull(System.getenv("JWT_SECRET")) {
+        "JWT_SECRET must be set to a random secret with at least 32 characters"
+    }
 
     val mongoClient = MongoClients.create(mongoUri)
-    val repository = MongoItemRepository(
-        mongoClient.getDatabase(databaseName).getCollection("items")
-    )
+    val database = mongoClient.getDatabase(databaseName)
+    val itemRepository = MongoItemRepository(database.getCollection("items"))
+    val userRepository = MongoUserRepository(database.getCollection("users"))
 
     Runtime.getRuntime().addShutdownHook(Thread { mongoClient.close() })
 
     embeddedServer(Netty, port = port, host = "0.0.0.0") {
-        module(repository)
+        module(itemRepository, userRepository, jwtSecret)
     }.start(wait = true)
 }
 
-fun Application.module(repository: ItemRepository) {
+fun Application.module(
+    itemRepository: ItemRepository,
+    userRepository: UserRepository,
+    jwtSecret: String
+) {
+    val jwtService = JwtService(jwtSecret)
+    val authService = AuthService(userRepository, BCryptPasswordHasher(), jwtService)
+
     install(ContentNegotiation) {
         json(Json {
             ignoreUnknownKeys = true
@@ -52,6 +72,19 @@ fun Application.module(repository: ItemRepository) {
 
     install(CallLogging) {
         level = Level.INFO
+    }
+
+    install(Authentication) {
+        jwt("auth-jwt") {
+            realm = JwtService.REALM
+            verifier(jwtService.verifier)
+            validate { credential ->
+                credential.payload.subject?.let { JWTPrincipal(credential.payload) }
+            }
+            challenge { _, _ ->
+                call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Authentication required"))
+            }
+        }
     }
 
     install(StatusPages) {
@@ -74,6 +107,9 @@ fun Application.module(repository: ItemRepository) {
         get("/health") {
             call.respond(HealthResponse("ok"))
         }
-        itemRoutes(repository)
+        authRoutes(authService)
+        authenticate("auth-jwt") {
+            itemRoutes(itemRepository)
+        }
     }
 }

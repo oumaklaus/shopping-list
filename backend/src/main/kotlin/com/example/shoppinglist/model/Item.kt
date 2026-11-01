@@ -23,3 +23,28 @@ data class ErrorResponse(val error: String)
 
 @Serializable
 data class HealthResponse(val status: String)
+
+data class User(
+    val id: String,
+    val email: String,
+    val passwordHash: String,
+    val createdAt: Long
+)
+
+@Serializable
+data class AuthRequest(
+    val email: String,
+    val password: String
+)
+
+@Serializable
+data class AuthUser(
+    val id: String,
+    val email: String
+)
+
+@Serializable
+data class AuthResponse(
+    val token: String,
+    val user: AuthUser
+)

@@ -1,10 +1,16 @@
 # Shopping List
 
+[![CI](https://github.com/oumaklaus/shopping-list/actions/workflows/ci.yml/badge.svg)](https://github.com/oumaklaus/shopping-list/actions/workflows/ci.yml)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
+[![Android](https://img.shields.io/badge/Android-API%2024%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
+
 A beginner-friendly Android shopping list app built with Kotlin and MongoDB.
 
-Users can add items with a name and quantity, see the whole list, mark items as
-purchased or not purchased, edit item details, and delete items. Data is stored
-in MongoDB, so it survives app and server restarts.
+Users can create an account, log in, and manage a private shopping list. They
+can add items with a name and quantity, mark items as purchased, edit them, and
+delete them. Accounts and shopping items are stored in MongoDB, passwords are
+stored as BCrypt hashes, and the Android app authenticates with JWT bearer
+tokens.
 
 ## Quick start (one command)
 
@@ -45,7 +51,7 @@ specific device.
 ```
 Android app (Kotlin, XML + RecyclerView)
         |
-        |  HTTP / JSON (Retrofit)
+        |  HTTPS/HTTP + JWT / JSON (Retrofit)
         v
 Ktor REST API (Kotlin)
         |
@@ -62,11 +68,14 @@ MongoDB properly.
 
 ```
 shopping-list/
+├── .github/                CI, Dependabot, and pull request configuration
 ├── android/                 Android app (open this folder in Android Studio)
 │   └── app/src/main/
 │       ├── java/com/example/shoppinglist/
-│       │   ├── data/        Item model, Retrofit API, repository
-│       │   ├── ui/          ViewModel, adapter, input validation
+│       │   ├── auth/        Login input validation
+│       │   ├── data/        Auth/item models, session, Retrofit repositories
+│       │   ├── ui/          Auth/list ViewModels and list adapter
+│       │   ├── LoginActivity.kt
 │       │   └── MainActivity.kt
 │       └── res/             Layouts, theme, strings, icons
 ├── backend/                 Ktor REST API
@@ -77,6 +86,7 @@ shopping-list/
 ├── docker-compose.yml       MongoDB for local development
 ├── deploy-azure.sh          Azure App Service deployment helper
 ├── run.sh                   One-command local setup and phone install
+├── tests/                   Repository-level verification scripts
 └── README.md
 ```
 
@@ -155,11 +165,19 @@ Expected response:
 
 Environment variables:
 
-| Variable      | Default                     | Purpose                  |
-|---------------|-----------------------------|--------------------------|
-| `PORT`        | `8080`                      | HTTP port                |
-| `MONGODB_URI` | `mongodb://localhost:27017` | MongoDB connection string |
-| `MONGODB_DB`  | `shopping_list`             | Database name            |
+| Variable      | Default                              | Purpose                   |
+|---------------|--------------------------------------|---------------------------|
+| `PORT`        | `8080`                               | HTTP port                 |
+| `MONGODB_URI` | `mongodb://localhost:27017`          | MongoDB connection string |
+| `MONGODB_DB`  | `shopping_list`                      | Database name             |
+| `JWT_SECRET`  | Required when running directly       | Signs login tokens        |
+
+`./run.sh` generates and reuses a private secret in `.run/jwt-secret`. When
+starting the backend directly or deploying it, set a strong stable secret:
+
+```bash
+export JWT_SECRET="$(openssl rand -hex 32)"
+```
 
 ## Cloud deployment (Azure)
 
@@ -178,8 +196,12 @@ export AZURE_LOCATION="eastus"
 export AZURE_SKU="F1"
 read -rsp "MongoDB URI: " MONGODB_URI && export MONGODB_URI && printf '\n'
 export MONGODB_DB="shopping_list"
+export JWT_SECRET="$(openssl rand -hex 32)" # Generate once, then store securely
 ./deploy-azure.sh
 ```
+
+Keep the same `JWT_SECRET` for later deployments. Rotating it signs out every
+existing session, so only replace it intentionally.
 
 `F1` is requested by default to minimize cost, but availability and charges
 depend on the subscription and region.
@@ -233,18 +255,30 @@ The backend must be running before you launch the app.
 
 ## API
 
-| Method | Path          | Description                    | Success |
-|--------|---------------|--------------------------------|---------|
-| GET    | `/health`     | Health check                   | 200     |
-| GET    | `/items`      | List all items                 | 200     |
-| POST   | `/items`      | Create an item                 | 201     |
-| PUT    | `/items/{id}` | Update name, quantity, status  | 200     |
-| DELETE | `/items/{id}` | Delete an item                 | 204     |
+| Method | Path             | Description                         | Success |
+|--------|------------------|-------------------------------------|---------|
+| GET    | `/health`        | Public health check                 | 200     |
+| POST   | `/auth/register` | Create an account and receive a JWT | 201     |
+| POST   | `/auth/login`    | Log in and receive a JWT            | 200     |
+| GET    | `/items`         | List the signed-in user's items     | 200     |
+| POST   | `/items`         | Create a private item               | 201     |
+| PUT    | `/items/{id}`    | Update an owned item                | 200     |
+| DELETE | `/items/{id}`    | Delete an owned item                | 204     |
+
+Register and capture the token:
+
+```bash
+TOKEN="$(curl -fsS -X POST http://localhost:8080/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"shopper@example.com","password":"correct-horse"}' \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')"
+```
 
 Create an item:
 
 ```bash
 curl -X POST http://localhost:8080/items \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Milk","quantity":2}'
 ```
@@ -253,6 +287,7 @@ Update an item:
 
 ```bash
 curl -X PUT http://localhost:8080/items/ITEM_ID \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Oat milk","quantity":3,"purchased":true}'
 ```
@@ -260,7 +295,8 @@ curl -X PUT http://localhost:8080/items/ITEM_ID \
 Delete an item:
 
 ```bash
-curl -X DELETE http://localhost:8080/items/ITEM_ID
+curl -X DELETE http://localhost:8080/items/ITEM_ID \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 Validation rules: the name must not be blank and must be at most 80
@@ -280,7 +316,11 @@ An item looks like this:
 
 ## Tests
 
-Backend unit tests (10 tests; Ktor routes with an in-memory repository):
+GitHub Actions runs the backend suite, Android unit tests, lint, APK build, and
+repository verification scripts on every pull request and push to `main`. The
+debug APK is uploaded as a workflow artifact.
+
+Backend tests (Ktor authentication and private item routes with in-memory repositories):
 
 ```bash
 cd backend
@@ -293,8 +333,8 @@ Azure executable-JAR build from the repository root:
 ./gradlew clean azurePackage
 ```
 
-Android unit tests (21 tests: 7 input validation, 8 ViewModel, 6 Retrofit/API
-contract tests using MockWebServer):
+Android unit tests cover authentication and item validation, ViewModels, and
+Retrofit contracts using MockWebServer:
 
 ```bash
 cd android
@@ -309,31 +349,26 @@ cd android
 ./gradlew lintDebug
 ```
 
-The project was also verified end-to-end on an Android 15 emulator against the
-real Ktor backend and MongoDB:
-
-- add an item, then see it in the list;
-- toggle purchased and confirm the change in MongoDB;
-- edit the name/quantity and confirm the update;
-- delete the item and see the empty state;
-- restart the app and confirm the list reloads from MongoDB;
-- stop the backend, confirm the error screen appears, restart the backend, and
-  confirm Retry reloads the list.
-
-The one-command setup was also verified on a physical Android phone: the script
-installed and launched the app, the app loaded the list through `adb reverse`,
-and a new item added on the phone was saved to MongoDB.
-
 ## Notes and limitations
 
-- There is one shared shopping list and no login. This keeps the project focused
-  on Android and MongoDB CRUD for a school demo.
+- Accounts have private lists; item queries and mutations are scoped by the
+  authenticated user id.
+- Password reset and email verification are not included.
 - HTTP is used for local development. `android:usesCleartextTraffic="true"` is
   only appropriate for a local demo; use HTTPS in a real app.
 - The app shows a clear error screen when the backend cannot be reached, with a
   Retry button.
 - Purchased items are shown with strikethrough text and are sorted by creation
   time along with the rest of the list.
+- Databases created before account support contain items without `userId`.
+  Those items are intentionally hidden; archive them or assign ownership in a
+  controlled migration before upgrading a populated deployment.
+
+## Contributing and security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull request checks.
+Report security issues using the private process in [SECURITY.md](SECURITY.md),
+not a public issue.
 
 ## Troubleshooting
 
