@@ -23,7 +23,7 @@ dependencies {
     implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
     implementation("io.ktor:ktor-server-status-pages:$ktorVersion")
     implementation("io.ktor:ktor-server-call-logging:$ktorVersion")
-    implementation("ch.qos.logback:logback-classic:1.5.12")
+    implementation("ch.qos.logback:logback-classic:1.6.6")
     implementation("org.mongodb:mongodb-driver-sync:4.11.5")
     implementation("at.favre.lib:bcrypt:0.10.2")
 
