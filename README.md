@@ -1,384 +1,88 @@
 # Shopping List
 
-[![CI](https://github.com/oumaklaus/shopping-list/actions/workflows/ci.yml/badge.svg)](https://github.com/oumaklaus/shopping-list/actions/workflows/ci.yml)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
-[![Android](https://img.shields.io/badge/Android-API%2024%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
+An Android shopping-list application written in Kotlin. Users can register,
+log in, and manage a private list of items. The Android application communicates
+with a Ktor backend, and the backend stores accounts and items in MongoDB.
 
-A beginner-friendly Android shopping list app built with Kotlin and MongoDB.
+## Main features
 
-Users can create an account, log in, and manage a private shopping list. They
-can add items with a name and quantity, mark items as purchased, edit them, and
-delete them. Accounts and shopping items are stored in MongoDB, passwords are
-stored as BCrypt hashes, and the Android app authenticates with JWT bearer
-tokens.
-
-## Quick start (one command)
-
-Connect your Android phone with USB debugging enabled, unlock it, and accept the
-"Allow USB debugging" prompt. Then run:
-
-```bash
-./run.sh
-```
-
-This single command:
-
-1. starts MongoDB if it is not already running;
-2. builds and starts the Ktor backend on port 8080;
-3. forwards port 8080 to the phone with `adb reverse`;
-4. builds the Android app with the correct URL for the phone;
-5. installs and opens the app.
-
-Keep the phone connected by USB while you test. The backend log is at
-`.run/backend.log`.
-
-Useful variations:
-
-```bash
-./run.sh          # start everything and open the app
-./run.sh backend  # start only MongoDB and the backend
-./run.sh app      # build/install/open the app (backend must already run)
-./run.sh cloud https://YOUR-APP.azurewebsites.net
-./run.sh stop     # stop the backend; MongoDB keeps running
-```
-
-The script also works with an emulator. If both a phone and an emulator are
-connected, it prefers the physical phone. Set `ANDROID_SERIAL` to choose a
-specific device.
-
-## Architecture
-
-```
-Android app (Kotlin, XML + RecyclerView)
-        |
-        |  HTTPS/HTTP + JWT / JSON (Retrofit)
-        v
-Ktor REST API (Kotlin)
-        |
-        |  MongoDB driver
-        v
-MongoDB Atlas (Docker is an optional local fallback)
-```
-
-An Android app cannot connect to MongoDB directly, so the project uses a small
-Ktor backend in Kotlin. That keeps the whole project in Kotlin while still using
-MongoDB properly.
+- Account registration and login
+- JWT authentication
+- Add, edit, purchase, and delete shopping items
+- A separate list for each account
+- Password hashing with BCrypt
+- MongoDB storage
 
 ## Project structure
 
-```
+```text
 shopping-list/
-├── .github/                CI, Dependabot, and pull request configuration
-├── android/                 Android app (open this folder in Android Studio)
-│   └── app/src/main/
-│       ├── java/com/example/shoppinglist/
-│       │   ├── auth/        Login input validation
-│       │   ├── data/        Auth/item models, session, Retrofit repositories
-│       │   ├── ui/          Auth/list ViewModels and list adapter
-│       │   ├── LoginActivity.kt
-│       │   └── MainActivity.kt
-│       └── res/             Layouts, theme, strings, icons
-├── backend/                 Ktor REST API
-│   └── src/main/kotlin/com/example/shoppinglist/
-│       ├── model/           Shared data classes
-│       ├── repository/      Repository interface + MongoDB implementation
-│       └── routes/          HTTP routes
-├── docker-compose.yml       MongoDB for local development
-├── deploy-azure.sh          Azure App Service deployment helper
-├── run.sh                   One-command local setup and phone install
-├── tests/                   Repository-level verification scripts
-└── README.md
+├── .github/    GitHub repository configuration
+├── android/    Android application
+├── backend/    Ktor REST API
+└── docker-compose.yml
 ```
 
 ## Requirements
 
-- Android Studio (with an emulator or a physical Android device)
+- Android Studio
 - JDK 17 or newer
-- Docker for optional local MongoDB, or a MongoDB Atlas connection string
-- Azure account and Cosmos DB for MongoDB (or Atlas) when deploying
+- IntelliJ IDEA and MongoDB only if you want to run the backend locally
 
-## 1. Start MongoDB
+## Run from the IDE
 
-With Docker Compose:
+### Run the Android app
 
-```bash
-docker compose up -d --wait
+The app is configured to use the hosted backend at:
+
+```text
+https://shopping-list-api-157d42b0.azurewebsites.net/
 ```
 
-If Docker Compose is not available, use plain Docker:
+You do not need to start MongoDB or the backend in IntelliJ IDEA.
 
-```bash
-docker run -d --name shopping-list-mongo \
-  -p 127.0.0.1:27017:27017 \
-  -v shopping_list_mongo_data:/data/db \
-  mongo:7.0
-```
+1. In IntelliJ IDEA, select **File > Open**.
+2. Open the `android` folder as a project in a new window.
+3. Wait for Gradle sync to finish.
+4. Open **Tools > Device Manager** and start an emulator.
+5. Select the `app` configuration in the top toolbar.
+6. Click the green Run button.
 
-If Docker reports `failed to add the host <=> sandbox pair interfaces` (some
-sandboxes do not support bridge networking), use host networking instead:
+### Run the backend locally (optional)
 
-```bash
-docker run -d --name shopping-list-mongo \
-  --network host \
-  -v shopping_list_mongo_data:/data/db \
-  mongo:7.0 --bind_ip 127.0.0.1
-```
+Start MongoDB first. Then:
 
-The backend uses `mongodb://localhost:27017` and the database
-`shopping_list` by default.
-
-To use MongoDB Atlas instead, set `MONGODB_URI` before starting the backend:
-
-```bash
-read -rsp "Atlas URI: " MONGODB_URI && export MONGODB_URI && printf '\n'
-```
-
-## 2. Run the backend
-
-The easiest way is the one-command script from the project root:
-
-```bash
-./run.sh backend
-```
-
-Or run the backend directly with Gradle:
-
-```bash
-cd backend
-./gradlew run
-```
-
-If `./gradlew run` fails with `Address already in use`, an older backend is
-still running on port 8080. Use `./run.sh stop` or stop that process first.
-
-The API starts at `http://localhost:8080`. Check it with:
-
-```bash
-curl http://localhost:8080/health
-```
-
-Expected response:
-
-```json
-{"status":"ok"}
-```
-
-Environment variables:
-
-| Variable      | Default                              | Purpose                   |
-|---------------|--------------------------------------|---------------------------|
-| `PORT`        | `8080`                               | HTTP port                 |
-| `MONGODB_URI` | `mongodb://localhost:27017`          | MongoDB connection string |
-| `MONGODB_DB`  | `shopping_list`                      | Database name             |
-| `JWT_SECRET`  | Required when running directly       | Signs login tokens        |
-
-`./run.sh` generates and reuses a private secret in `.run/jwt-secret`. When
-starting the backend directly or deploying it, set a strong stable secret:
-
-```bash
-export JWT_SECRET="$(openssl rand -hex 32)"
-```
-
-## Cloud deployment (Azure)
-
-The Shopping List uses its own Azure App Service, Mongo-compatible database,
-credentials, and URL. Do not reuse TaskFlow resources.
-
-1. Install Azure CLI and run `az login`.
-2. Create a separate Cosmos DB for MongoDB database (or Atlas database) and get
-   its connection string.
-3. Deploy with Shopping List-specific values:
-
-```bash
-export AZURE_RESOURCE_GROUP="shopping-list-school-rg"
-export AZURE_APP_NAME="UNIQUE-SHOPPING-LIST-API"
-export AZURE_LOCATION="eastus"
-export AZURE_SKU="F1"
-read -rsp "MongoDB URI: " MONGODB_URI && export MONGODB_URI && printf '\n'
-export MONGODB_DB="shopping_list"
-export JWT_SECRET="$(openssl rand -hex 32)" # Generate once, then store securely
-./deploy-azure.sh
-```
-
-Keep the same `JWT_SECRET` for later deployments. Rotating it signs out every
-existing session, so only replace it intentionally.
-
-`F1` is requested by default to minimize cost, but availability and charges
-depend on the subscription and region.
-
-After deployment, install the cloud-configured APK:
-
-```bash
-./run.sh cloud https://UNIQUE-SHOPPING-LIST-API.azurewebsites.net
-```
-
-The installed app then talks directly to Azure, so Docker and the local backend
-are no longer required.
-
-## 3. Run the Android app
-
-### Physical phone (recommended)
-
-Connect the phone by USB with USB debugging enabled, then run this from the
-project root:
-
-```bash
-./run.sh
-```
-
-The script runs `adb reverse tcp:8080 tcp:8080` and builds the app with
-`http://127.0.0.1:8080/`. That means the phone does not need to be on the same
-Wi-Fi network as the computer, and no LAN IP or firewall changes are needed.
-Keep the USB cable connected while testing.
-
-### Emulator or Android Studio
-
-1. Open the `android/` folder in Android Studio.
+1. Open the project root in IntelliJ IDEA.
 2. Wait for Gradle sync to finish.
-3. Start an emulator and run the `app` configuration.
+3. Open `backend/src/main/kotlin/com/example/shoppinglist/Application.kt`.
+4. Click the green Run icon next to `fun main()`.
 
-The emulator reaches the computer through `10.0.2.2`, which is the default URL:
+The backend starts at `http://localhost:8080`. Visit
+`http://localhost:8080/health` to confirm it is running.
 
-```kotlin
-val apiBaseUrl = providers.gradleProperty("apiBaseUrl")
-    .getOrElse("http://10.0.2.2:8080/")
-```
+Optional backend environment variables:
 
-You can override it at build time for any other setup:
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `8080` | Backend port |
+| `MONGODB_URI` | `mongodb://localhost:27017` | MongoDB connection |
+| `MONGODB_DB` | `shopping_list` | Database name |
+| `JWT_SECRET` | Local development value | Overrides the token-signing secret |
 
-```bash
-cd android
-./gradlew assembleDebug -PapiBaseUrl="http://192.168.1.20:8080/"
-```
+## API routes
 
-The backend must be running before you launch the app.
+| Method | Path | Description |
+|---|---|---|
+| GET | `/health` | Check the backend status |
+| POST | `/auth/register` | Create an account |
+| POST | `/auth/login` | Log in |
+| GET | `/items` | Get the user's items |
+| POST | `/items` | Add an item |
+| PUT | `/items/{id}` | Update an item |
+| DELETE | `/items/{id}` | Delete an item |
 
-## API
+## Presentation order
 
-| Method | Path             | Description                         | Success |
-|--------|------------------|-------------------------------------|---------|
-| GET    | `/health`        | Public health check                 | 200     |
-| POST   | `/auth/register` | Create an account and receive a JWT | 201     |
-| POST   | `/auth/login`    | Log in and receive a JWT            | 200     |
-| GET    | `/items`         | List the signed-in user's items     | 200     |
-| POST   | `/items`         | Create a private item               | 201     |
-| PUT    | `/items/{id}`    | Update an owned item                | 200     |
-| DELETE | `/items/{id}`    | Delete an owned item                | 204     |
-
-Register and capture the token:
-
-```bash
-TOKEN="$(curl -fsS -X POST http://localhost:8080/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"shopper@example.com","password":"correct-horse"}' \
-  | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')"
-```
-
-Create an item:
-
-```bash
-curl -X POST http://localhost:8080/items \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Milk","quantity":2}'
-```
-
-Update an item:
-
-```bash
-curl -X PUT http://localhost:8080/items/ITEM_ID \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Oat milk","quantity":3,"purchased":true}'
-```
-
-Delete an item:
-
-```bash
-curl -X DELETE http://localhost:8080/items/ITEM_ID \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-Validation rules: the name must not be blank and must be at most 80
-characters; the quantity must be an integer from 1 to 9999.
-
-An item looks like this:
-
-```json
-{
-  "id": "6ae10dfd191ea823cfc29492",
-  "name": "Milk",
-  "quantity": 2,
-  "purchased": false,
-  "createdAt": 1793134077565
-}
-```
-
-## Tests
-
-GitHub Actions runs the backend suite, Android unit tests, lint, APK build, and
-repository verification scripts on every pull request and push to `main`. The
-debug APK is uploaded as a workflow artifact.
-
-Backend tests (Ktor authentication and private item routes with in-memory repositories):
-
-```bash
-cd backend
-./gradlew test
-```
-
-Azure executable-JAR build from the repository root:
-
-```bash
-./gradlew clean azurePackage
-```
-
-Android unit tests cover authentication and item validation, ViewModels, and
-Retrofit contracts using MockWebServer:
-
-```bash
-cd android
-./gradlew testDebugUnitTest
-```
-
-Android build and lint:
-
-```bash
-cd android
-./gradlew assembleDebug
-./gradlew lintDebug
-```
-
-## Notes and limitations
-
-- Accounts have private lists; item queries and mutations are scoped by the
-  authenticated user id.
-- Password reset and email verification are not included.
-- HTTP is used for local development. `android:usesCleartextTraffic="true"` is
-  only appropriate for a local demo; use HTTPS in a real app.
-- The app shows a clear error screen when the backend cannot be reached, with a
-  Retry button.
-- Purchased items are shown with strikethrough text and are sorted by creation
-  time along with the rest of the list.
-- Databases created before account support contain items without `userId`.
-  Those items are intentionally hidden; archive them or assign ownership in a
-  controlled migration before upgrading a populated deployment.
-
-## Contributing and security
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull request checks.
-Report security issues using the private process in [SECURITY.md](SECURITY.md),
-not a public issue.
-
-## Troubleshooting
-
-| Problem | Fix |
-|---------|-----|
-| App shows "Could not reach the server" | Make sure MongoDB and the backend are running, and the base URL is correct. |
-| Emulator cannot connect | Use `http://10.0.2.2:8080/`, not `localhost`. |
-| Physical phone cannot connect | Run `./run.sh` from the project root; it sets up `adb reverse` automatically. Keep the USB cable connected. |
-| `No Android device detected` | Enable USB debugging, unlock the phone, accept the "Allow USB debugging" prompt, then run `./run.sh` again. |
-| Device shows as `unauthorized` | Unlock the phone and accept the USB debugging prompt, then reconnect the cable. |
-| Port 8080 is already in use | Run `./run.sh` (it stops the previous project backend) or `./run.sh stop`. |
-| Backend starts but requests fail | Check `MONGODB_URI` and make sure MongoDB is accepting connections on port 27017. |
-| Gradle cannot find the Android SDK | Open the `android/` folder in Android Studio, or set `sdk.dir` in `android/local.properties`. |
+1. Start the Android emulator.
+2. Run the `app` configuration from Android Studio or IntelliJ IDEA.
+3. Register, add an item, edit it, mark it purchased, and delete it.

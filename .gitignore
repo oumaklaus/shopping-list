@@ -21,11 +21,6 @@ android/captures/
 !.env.example
 .run/
 
-# Local agent and verification artifacts
-.codex-artifacts/
-.superpowers/
-docs/superpowers/
-
 # Signing and service credentials
 *.jks
 *.keystore

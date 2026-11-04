@@ -5,8 +5,8 @@
 
 ## Verification
 
-- [ ] Backend tests pass
-- [ ] Android unit tests pass
+- [ ] Backend builds successfully
+- [ ] Android app builds successfully
 - [ ] Android lint passes
 - [ ] Debug APK builds
 - [ ] No credentials or local configuration files are included

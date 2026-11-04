@@ -27,8 +27,6 @@ dependencies {
     implementation("org.mongodb:mongodb-driver-sync:4.11.5")
     implementation("at.favre.lib:bcrypt:0.10.2")
 
-    testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:2.0.21")
 }
 
 java {
@@ -45,10 +43,6 @@ kotlin {
 application {
     applicationName = "shopping-list-backend"
     mainClass.set("com.example.shoppinglist.ApplicationKt")
-}
-
-tasks.test {
-    useJUnit()
 }
 
 tasks.shadowJar {

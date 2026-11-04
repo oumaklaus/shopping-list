@@ -28,10 +28,13 @@ import io.ktor.server.plugins.calllogging.CallLogging
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import kotlinx.serialization.json.Json
 import org.slf4j.event.Level
+
+private const val LOCAL_JWT_SECRET = "shopping-list-local-development-secret"
 
 fun main() {
     val port = System.getenv("PORT")?.toIntOrNull()
@@ -39,9 +42,7 @@ fun main() {
         ?: 8080
     val mongoUri = System.getenv("MONGODB_URI") ?: "mongodb://localhost:27017"
     val databaseName = System.getenv("MONGODB_DB") ?: "shopping_list"
-    val jwtSecret = requireNotNull(System.getenv("JWT_SECRET")) {
-        "JWT_SECRET must be set to a random secret with at least 32 characters"
-    }
+    val jwtSecret = System.getenv("JWT_SECRET") ?: LOCAL_JWT_SECRET
 
     val mongoClient = MongoClients.create(mongoUri)
     val database = mongoClient.getDatabase(databaseName)
@@ -104,6 +105,9 @@ fun Application.module(
     }
 
     routing {
+        get("/") {
+            call.respondText("Shopping List API is running. Health check: /health")
+        }
         get("/health") {
             call.respond(HealthResponse("ok"))
         }
