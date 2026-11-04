@@ -41,12 +41,13 @@ https://shopping-list-api-157d42b0.azurewebsites.net/
 
 You do not need to start MongoDB or the backend in IntelliJ IDEA.
 
-1. In IntelliJ IDEA, select **File > Open**.
+1. In IntelliJ IDEA or Android Studio, select **File > Open**.
 2. Open the `android` folder as a project in a new window.
 3. Wait for Gradle sync to finish.
-4. Open **Tools > Device Manager** and start an emulator.
-5. Select the `app` configuration in the top toolbar.
-6. Click the green Run button.
+4. Connect and unlock your phone.
+5. Enable **Developer options > USB debugging** and accept the phone's prompt.
+6. Select the `app` configuration and your phone in the top toolbar.
+7. Click the green Run button.
 
 ### Run the backend locally (optional)
 
@@ -83,6 +84,6 @@ Optional backend environment variables:
 
 ## Presentation order
 
-1. Start the Android emulator.
+1. Connect the phone and select it in the IDE.
 2. Run the `app` configuration from Android Studio or IntelliJ IDEA.
 3. Register, add an item, edit it, mark it purchased, and delete it.

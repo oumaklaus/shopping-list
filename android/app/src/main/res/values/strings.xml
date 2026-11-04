@@ -29,11 +29,11 @@
     <string name="empty_title">Your list is empty</string>
     <string name="empty_subtitle">Tap the + button to add your first item.</string>
 
-    <string name="error_title">Could not reach the server</string>
-    <string name="error_subtitle">Make sure the backend is running, then try again.</string>
+    <string name="error_title">Could not connect</string>
+    <string name="error_subtitle">Check your internet connection, then try again.</string>
     <string name="retry">Retry</string>
-    <string name="error_refresh">Could not refresh your list. Check the server connection.</string>
-    <string name="error_save">Could not save your change. Check the server connection.</string>
+    <string name="error_refresh">Could not refresh your list. Check your connection.</string>
+    <string name="error_save">Could not save your change. Check your connection.</string>
 
     <string name="error_name_required">Enter an item name</string>
     <string name="error_name_too_long">Name must be 80 characters or fewer</string>
